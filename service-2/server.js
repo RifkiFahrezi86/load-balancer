@@ -83,6 +83,16 @@ function snapshot() {
   };
 }
 
+function logEvent(event, details = {}) {
+  const parts = Object.entries(details)
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => `${key}=${JSON.stringify(value)}`);
+
+  console.log(
+    `[${new Date().toISOString()}] ${serverName} ${event}${parts.length ? ` ${parts.join(" ")}` : ""}`,
+  );
+}
+
 function notFound(res) {
   sendJson(res, 404, { error: "Route tidak ditemukan" });
 }
@@ -102,6 +112,7 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "POST" && requestUrl.pathname === "/api/reset") {
     resetMetrics();
+    logEvent("metrics-reset");
     sendJson(res, 200, { ok: true, status: snapshot() });
     return;
   }
@@ -117,6 +128,11 @@ const server = http.createServer(async (req, res) => {
       if (typeof body.extraDelayMs === "number" && Number.isFinite(body.extraDelayMs)) {
         runtimeConfig.extraDelayMs = Math.max(0, Math.round(body.extraDelayMs));
       }
+
+      logEvent("config-updated", {
+        baseDelayMs: runtimeConfig.baseDelayMs,
+        extraDelayMs: runtimeConfig.extraDelayMs,
+      });
 
       sendJson(res, 200, { ok: true, status: snapshot() });
     } catch (error) {
@@ -136,12 +152,21 @@ const server = http.createServer(async (req, res) => {
     totalRequests += 1;
     peakActiveConnections = Math.max(peakActiveConnections, activeConnections);
 
+    logEvent("request-started", {
+      requestId,
+      algorithm,
+      queueDepth,
+      processingMs,
+      activeConnections,
+    });
+
     setTimeout(() => {
       activeConnections = Math.max(0, activeConnections - 1);
       completedRequests += 1;
       totalProcessingMs += processingMs;
 
       const finishedAt = Date.now();
+      const durationMs = finishedAt - startedAt;
       lastRequest = {
         requestId,
         algorithm,
@@ -162,6 +187,17 @@ const server = http.createServer(async (req, res) => {
         },
         ...history,
       ].slice(0, 12);
+
+      logEvent("request-completed", {
+        requestId,
+        algorithm,
+        queueDepth,
+        processingMs,
+        durationMs,
+        activeConnections,
+        totalRequests,
+        completedRequests,
+      });
 
       sendJson(res, 200, {
         ok: true,
@@ -186,5 +222,9 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, () => {
-  console.log(`${serverName} listening on ${port}`);
+  logEvent("service-started", {
+    port,
+    baseDelayMs: runtimeConfig.baseDelayMs,
+    extraDelayMs: runtimeConfig.extraDelayMs,
+  });
 });

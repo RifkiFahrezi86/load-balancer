@@ -1,0 +1,68 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    container_name: lb-gateway
+    ports:
+      - "8080:80"
+    depends_on:
+      service1:
+        condition: service_healthy
+      service2:
+        condition: service_healthy
+      service3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  service1:
+    build:
+      context: ./service-1
+    container_name: lb-service-1
+    environment:
+      SERVER_INDEX: "0"
+      SERVER_NAME: "server 1"
+      SERVER_COLOR: "#ff8a78"
+      BASE_DELAY_MS: "450"
+      EXTRA_DELAY_MS: "1600"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  service2:
+    build:
+      context: ./service-2
+    container_name: lb-service-2
+    environment:
+      SERVER_INDEX: "1"
+      SERVER_NAME: "server 2"
+      SERVER_COLOR: "#62c1ff"
+      BASE_DELAY_MS: "450"
+      EXTRA_DELAY_MS: "0"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  service3:
+    build:
+      context: ./service-3
+    container_name: lb-service-3
+    environment:
+      SERVER_INDEX: "2"
+      SERVER_NAME: "server 3"
+      SERVER_COLOR: "#f7b955"
+      BASE_DELAY_MS: "450"
+      EXTRA_DELAY_MS: "0"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
